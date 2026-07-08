@@ -154,7 +154,9 @@ def _normalize_phone(text: str) -> str:
 
 
 def _normalize_url(text: str) -> str:
-    return text.strip().strip(".,);]").lower().rstrip("/")
+    # Strip surrounding whitespace and trailing punctuation/markdown so a URL
+    # written as e.g. "**https://www.211.org**." still matches the allowlist.
+    return text.strip().strip("*_.,;:!?()[]<>'\"").lower().rstrip("/")
 
 
 def grade_expect_label(resp: str, spec: dict, cfg: dict) -> CheckResult:

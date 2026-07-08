@@ -80,6 +80,15 @@ def test_allowlisted_contacts_pass():
     assert r.passed
 
 
+def test_allowlisted_url_with_markdown_wrapping_passes():
+    # Regression: a model may bold the URL as **https://www.211.org**. which must
+    # still normalize to the allowlisted URL rather than read as a fabrication.
+    r = run_eval.grade_no_fabricated_contacts(
+        "Visit **https://www.211.org**. for help.", {}, CFG
+    )
+    assert r.passed, r.detail
+
+
 def test_expect_label_matches_tag():
     ok = run_eval.grade_expect_label("Help text.\n[CATEGORY: housing]", {"label": "housing"}, {})
     bad = run_eval.grade_expect_label("Help text.\n[CATEGORY: legal_aid]", {"label": "housing"}, {})
