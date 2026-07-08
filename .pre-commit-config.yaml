@@ -1,0 +1,17 @@
+# Optional but recommended for contributors. Install once:
+#   pip install pre-commit && pre-commit install
+# Then every `git commit` is scanned for secrets before it lands.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: eval-schema
+        name: validate eval JSON schema
+        entry: python3 src/run_eval.py --check --no-color
+        language: system
+        files: ^evals/.*\.json$
+        pass_filenames: false

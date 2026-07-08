@@ -30,9 +30,8 @@ jobs:
       - name: Install dev dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Lint the eval JSON (must be valid)
-        run: |
-          python3 -c "import json, glob; [json.load(open(f)) for f in glob.glob('evals/*.json')]; print('all eval JSON valid')"
+      - name: Validate the eval JSON against the schema
+        run: python3 src/run_eval.py --check --no-color
 
       - name: Gate on GOOD responses (must be 100% pass)
         run: python3 src/run_eval.py --responses good --fail-under 1.0 --no-color
