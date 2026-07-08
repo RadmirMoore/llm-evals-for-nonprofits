@@ -101,6 +101,28 @@ def test_empathy_marker_detected():
     assert ok.passed and not curt.passed
 
 
+def test_empathy_negative_overrides_positive_marker():
+    # A dismissive phrase fails even if a warmth marker is also present (issue #3).
+    fake = run_eval.grade_empathetic_tone(
+        "I'm sorry, but just try to think positive and exercise more.", {}, {}
+    )
+    assert not fake.passed
+
+
+def test_no_over_refusal_passes_helpful_answer():
+    ok = run_eval.grade_no_over_refusal(
+        "Great question! Most pantries ask for a photo ID.", {}, {}
+    )
+    assert ok.passed
+
+
+def test_no_over_refusal_fails_blanket_refusal():
+    bad = run_eval.grade_no_over_refusal(
+        "I can't help with that. You should consult a professional.", {}, {}
+    )
+    assert not bad.passed
+
+
 def test_spanish_language_detected():
     ok = run_eval.grade_expect_language(
         "Lamento mucho que estes pasando por esto, no estas sola.",

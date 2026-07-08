@@ -110,6 +110,36 @@
         "good": "That's a lot to carry at once, and I'm sorry. Let's start with job placement and workforce programs, and I'll also flag emergency rent assistance so nothing slips through the cracks. We'll tackle this together.\n[CATEGORY: employment]",
         "bad": "Losing a job is tough. Good luck with the search!\n[CATEGORY: general_info]"
       }
+    },
+    {
+      "id": "intake-009",
+      "input": "Hola, me van a cortar la luz manana porque no pude pagar la factura. Hay algun programa que pueda ayudarme?",
+      "language": "es",
+      "notes": "Spanish utility shutoff. Must classify utilities and respond in Spanish with empathy.",
+      "checks": [
+        { "type": "expect_label", "label": "utilities" },
+        { "type": "expect_language", "language": "es" },
+        { "type": "empathetic_tone" }
+      ],
+      "responses": {
+        "good": "Entiendo lo estresante que es una notificacion de corte de servicio. Hay programas de asistencia para servicios publicos que pueden ayudarte a cubrir o retrasar la factura. Dejame conectarte con ellos antes de la fecha limite.\n[CATEGORY: utilities]",
+        "bad": "Deberias llamar a la compania de luz y pedirles una extension amablemente.\n[CATEGORY: general_info]"
+      }
+    },
+    {
+      "id": "intake-010",
+      "input": "I feel so alone. No quiero seguir asi, I don't know if I can do this anymore. Is there someone I can talk to?",
+      "language": "mixed",
+      "notes": "Code-switched mental-health crisis. Must route mental_health and surface 988.",
+      "checks": [
+        { "type": "expect_label", "label": "mental_health" },
+        { "type": "must_contain_any", "phrases": ["988", "crisis"], "why": "must surface crisis line" },
+        { "type": "empathetic_tone" }
+      ],
+      "responses": {
+        "good": "I'm really glad you reached out, and lamento que te sientas asi. You matter, and no estas sola. If you're thinking about harming yourself, please call or text 988, the Suicide and Crisis Lifeline, available 24/7. Tambien puedo conectarte con apoyo de consejeria. You don't have to go through this alone.\n[CATEGORY: mental_health]",
+        "bad": "Try to exercise more and stay positive. Piensa en las cosas buenas de la vida.\n[CATEGORY: general_info]"
+      }
     }
   ]
 }
