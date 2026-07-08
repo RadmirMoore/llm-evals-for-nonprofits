@@ -50,7 +50,9 @@ python3 src/run_eval.py --responses live --model claude-sonnet-4-5
 ```
 
 Add `--judge` to also grade each case with an LLM-as-judge (see
-[`src/judge_prompt.md`](src/judge_prompt.md)).
+[`src/judge_prompt.md`](src/judge_prompt.md)). Full walkthrough of the live and
+judge modes — flags, adapting it to your own (non-Anthropic / RAG) assistant,
+and cost notes — is in [`docs/live-run.md`](docs/live-run.md).
 
 Useful flags: `--eval safety-boundaries` (run one suite), `--case safety-003`
 (filter by id), `--verbose` (show every check + the full response), `--json`
