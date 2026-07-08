@@ -132,3 +132,81 @@ def test_load_dotenv_does_not_override_existing(tmp_path, monkeypatch):
 def test_load_dotenv_missing_file_is_noop(tmp_path, monkeypatch):
     monkeypatch.setattr(run_eval, "ROOT", tmp_path)
     run_eval._load_dotenv()  # should not raise
+
+
+# --- response adapters ----------------------------------------------------- #
+def test_command_adapter_reads_stdin():
+    # `cat` echoes the message written to stdin.
+    out = run_eval.run_command_adapter("cat", "hello world", timeout=10)
+    assert out == "hello world"
+
+
+def test_command_adapter_templates_input():
+    out = run_eval.run_command_adapter("printf '%s' {input}", "hi there", timeout=10)
+    assert out == "hi there"
+
+
+def test_command_adapter_nonzero_exit_raises():
+    with pytest.raises(run_eval.AdapterError):
+        run_eval.run_command_adapter("false", "x", timeout=10)
+
+
+def test_command_adapter_missing_binary_raises():
+    with pytest.raises(run_eval.AdapterError):
+        run_eval.run_command_adapter("definitely-not-a-real-binary-xyz", "x", timeout=10)
+
+
+def test_module_adapter_resolves_and_calls():
+    func = run_eval.load_module_callable("html:escape")  # stdlib callable(str)->str
+    assert run_eval.run_module_adapter(func, "<b>") == "&lt;b&gt;"
+
+
+def test_module_adapter_bad_target_raises():
+    with pytest.raises(run_eval.AdapterError):
+        run_eval.load_module_callable("no_colon_here")
+    with pytest.raises(run_eval.AdapterError):
+        run_eval.load_module_callable("nonexistent_module_xyz:foo")
+    with pytest.raises(run_eval.AdapterError):
+        run_eval.load_module_callable("os:not_a_real_attr")
+
+
+class _FakeHTTPResponse:
+    def __init__(self, body: str):
+        self._body = body.encode("utf-8")
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_http_adapter_reads_response_field(monkeypatch):
+    monkeypatch.setattr(
+        run_eval.urllib.request, "urlopen",
+        lambda req, timeout=0: _FakeHTTPResponse('{"response": "hi from service"}'),
+    )
+    out = run_eval.run_http_adapter("http://x/answer", "msg", 5, "input", "response")
+    assert out == "hi from service"
+
+
+def test_http_adapter_missing_field_raises(monkeypatch):
+    monkeypatch.setattr(
+        run_eval.urllib.request, "urlopen",
+        lambda req, timeout=0: _FakeHTTPResponse('{"other": "x"}'),
+    )
+    with pytest.raises(run_eval.AdapterError):
+        run_eval.run_http_adapter("http://x/answer", "msg", 5, "input", "response")
+
+
+def test_run_source_marks_adapter_failure_per_case():
+    fake_suites = [{"eval": "x", "cases": [{"id": "x-1", "input": "hi", "checks": []}]}]
+    results = run_eval.run_source(
+        "command", fake_suites, None, {"cmd": "false", "timeout": 5}, None
+    )
+    assert len(results) == 1
+    assert not results[0].passed
+    assert results[0].failed_checks == ["adapter"]
