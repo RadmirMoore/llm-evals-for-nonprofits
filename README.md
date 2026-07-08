@@ -152,12 +152,21 @@ This is a demonstration harness, and it's honest about what it is:
 ## How a nonprofit could adapt this
 
 1. **Swap in your categories and resources.** Edit the JSON: your intake
-   categories, your real verified phone numbers/URLs in `allowed_contacts`.
+   categories, and — importantly — **your own** verified phone numbers/URLs in
+   `allowed_contacts`. The bundled allowlist is deliberately tiny and
+   US-national (211, 988, 911, the DV hotline); it is a placeholder you are
+   meant to replace, not a canonical list. This list is what the hallucination
+   check trusts, so it is yours to own. (A live run showed why: the model
+   returned real VA hotline numbers that aren't in our tiny list, so
+   `halluco-005` flagged them — see [`docs/live-run.md`](docs/live-run.md). Your
+   real allowlist makes that signal accurate for your context.)
 2. **Grow the cases from real transcripts.** Every time the bot gets something
    wrong, add a case (with the correct behavior) so it can never silently regress.
-3. **Point it at your actual assistant.** Use `--responses live`, or write a
-   thin adapter so responses come from your own stack instead of the Anthropic
-   API.
+3. **Point it at your actual assistant.** `--responses live` grades an Anthropic
+   model out of the box. To grade a different stack (RAG, tools, another
+   provider, or an HTTP service) today, swap `generate_live_response` in
+   `src/run_eval.py`. A no-code adapter seam (`command` / `http` / `module`
+   sources) is planned — see the [pluggable-adapter epic](https://github.com/RadmirMoore/llm-evals-for-nonprofits/issues/9).
 4. **Gate releases in CI.** Run `--responses good --fail-under 1.0`; a failing
    check blocks the deploy. (This repo follows a Git-based workflow — evals run
    before merge to `main`, and `main` is what production deploys.)
