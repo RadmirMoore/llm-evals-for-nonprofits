@@ -46,6 +46,27 @@ ROOT = Path(__file__).resolve().parent.parent
 EVALS_DIR = ROOT / "evals"
 JUDGE_PROMPT_PATH = Path(__file__).resolve().parent / "judge_prompt.md"
 
+
+def _load_dotenv() -> None:
+    """Load KEY=VALUE lines from a local, gitignored .env into os.environ.
+
+    Keeps secrets (e.g. ANTHROPIC_API_KEY) out of the shell history and the repo
+    without adding a dependency. Existing environment variables win, so an
+    explicit `export` still overrides the file.
+    """
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_dotenv()
+
 DEFAULT_MODEL = os.environ.get("EVAL_MODEL", "claude-sonnet-4-5")
 DEFAULT_JUDGE_MODEL = os.environ.get("EVAL_JUDGE_MODEL", DEFAULT_MODEL)
 
