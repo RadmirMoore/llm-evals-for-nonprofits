@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & discussion
+    url: https://github.com/RadmirMoore/llm-evals-for-nonprofits/discussions
+    about: Ask questions, share how your nonprofit adapted the harness, or discuss ideas.

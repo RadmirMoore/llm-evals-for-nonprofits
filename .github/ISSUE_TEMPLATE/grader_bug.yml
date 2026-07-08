@@ -1,0 +1,48 @@
+name: Grader false positive / negative
+description: A grader passed something it shouldn't, or failed something it should not
+title: "[grader] <short description>"
+labels: ["grader-bug"]
+body:
+  - type: dropdown
+    id: grader
+    attributes:
+      label: Which grader?
+      options:
+        - expect_label
+        - must_contain_any
+        - must_not_contain
+        - refer_to_professional
+        - no_fabricated_contacts
+        - empathetic_tone
+        - expect_language
+        - llm_judge
+        - not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type of problem
+      options:
+        - "False positive (passed but should have failed)"
+        - "False negative (failed but should have passed)"
+    validations:
+      required: true
+  - type: textarea
+    id: response
+    attributes:
+      label: The response being graded
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected vs. what happened
+      description: Paste the relevant `--verbose` output if you have it.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Python version
+      placeholder: "3.12"

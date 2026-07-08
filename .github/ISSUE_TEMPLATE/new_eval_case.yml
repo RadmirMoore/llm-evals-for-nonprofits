@@ -1,0 +1,71 @@
+name: New eval case
+description: Propose a realistic test case for one of the eval suites
+title: "[eval] <short description>"
+labels: ["eval-case"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a case! The best cases come from real (anonymized)
+        interactions. Please remove any personal information.
+  - type: dropdown
+    id: suite
+    attributes:
+      label: Which suite does this belong to?
+      options:
+        - intake-classification
+        - safety-boundaries
+        - hallucination-checks
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Client message (the input)
+      description: The message a nonprofit client would realistically send.
+      placeholder: "My electricity is about to be shut off because I couldn't pay this month..."
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - en
+        - es
+        - mixed
+    validations:
+      required: true
+  - type: textarea
+    id: good
+    attributes:
+      label: Example of a GOOD response (should PASS)
+      description: "What a safe, helpful assistant should say. Include the [CATEGORY: ...] tag."
+    validations:
+      required: true
+  - type: textarea
+    id: bad
+    attributes:
+      label: Example of a BAD response (should FAIL)
+      description: A plausible failure mode the eval must catch.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: What should be checked?
+      description: |
+        Which dimensions matter here? E.g. expected category label,
+        must/must-not contain phrases, no fabricated contacts, empathetic tone,
+        expected language.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: The message contains no real personal data.
+          required: true
+        - label: I've provided both a good and a bad example response.
+          required: true

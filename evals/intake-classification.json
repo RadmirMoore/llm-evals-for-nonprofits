@@ -1,0 +1,115 @@
+{
+  "eval": "intake-classification",
+  "description": "Checks whether the assistant routes an incoming request to the correct intake category. The assistant is expected to end its reply with a machine-readable tag: [CATEGORY: <label>]. Categories: housing, food_assistance, legal_aid, healthcare, mental_health, employment, immigration, utilities, domestic_violence, general_info.",
+  "cases": [
+    {
+      "id": "intake-001",
+      "input": "Hi, we got an eviction notice yesterday and we have to be out by the end of the month. Is there anyone who can help us find a place to stay?",
+      "language": "en",
+      "notes": "Clear housing case with time pressure.",
+      "checks": [
+        { "type": "expect_label", "label": "housing" }
+      ],
+      "responses": {
+        "good": "I'm sorry you're dealing with this. Losing your home is frightening, and you're not alone. I can connect you with emergency housing and eviction-prevention services in your area. Let's get you help right away.\n[CATEGORY: housing]",
+        "bad": "That sounds stressful. You should read your lease carefully and gather your documents.\n[CATEGORY: legal_aid]"
+      }
+    },
+    {
+      "id": "intake-002",
+      "input": "My kids and I haven't had a proper meal in two days and my fridge is empty. Where can we get groceries?",
+      "language": "en",
+      "notes": "Food assistance.",
+      "checks": [
+        { "type": "expect_label", "label": "food_assistance" },
+        { "type": "empathetic_tone" }
+      ],
+      "responses": {
+        "good": "I'm really sorry you and your kids are going through this. No one should have to skip meals. There are food pantries and meal programs nearby that can help you today. Let me point you to the closest ones.\n[CATEGORY: food_assistance]",
+        "bad": "Have you tried budgeting your income more carefully? Grocery stores have sales on weekends.\n[CATEGORY: general_info]"
+      }
+    },
+    {
+      "id": "intake-003",
+      "input": "Hola, necesito ayuda. Mi esposo me pega y tengo miedo de volver a casa esta noche.",
+      "language": "es",
+      "notes": "Spanish-language domestic violence disclosure. Must classify as domestic_violence and respond with empathy in Spanish.",
+      "checks": [
+        { "type": "expect_label", "label": "domestic_violence" },
+        { "type": "expect_language", "language": "es" },
+        { "type": "empathetic_tone" }
+      ],
+      "responses": {
+        "good": "Lamento mucho que estés pasando por esto. Tu seguridad es lo más importante y no estás sola. Puedo conectarte con un refugio seguro y con la Línea Nacional contra la Violencia Doméstica al 1-800-799-7233, disponible las 24 horas. Estoy aquí para ayudarte.\n[CATEGORY: domestic_violence]",
+        "bad": "Entiendo. Tal vez deberías hablar con tu esposo sobre cómo te sientes cuando ambos estén más calmados.\n[CATEGORY: general_info]"
+      }
+    },
+    {
+      "id": "intake-004",
+      "input": "I just moved here from Guatemala and I need help with my asylum paperwork. Necesito un abogado que hable espanol.",
+      "language": "mixed",
+      "notes": "English/Spanish mixed immigration request.",
+      "checks": [
+        { "type": "expect_label", "label": "immigration" }
+      ],
+      "responses": {
+        "good": "Welcome, and thank you for reaching out. Navigating asylum paperwork is hard, and we can help. Puedo conectarte con servicios legales de inmigracion que tienen personal que habla espanol. Let's find you the right support.\n[CATEGORY: immigration]",
+        "bad": "You should just fill out the forms online, it's pretty simple.\n[CATEGORY: general_info]"
+      }
+    },
+    {
+      "id": "intake-005",
+      "input": "My electricity is about to be shut off because I couldn't pay the bill this month. Can anything be done?",
+      "language": "en",
+      "notes": "Utility assistance.",
+      "checks": [
+        { "type": "expect_label", "label": "utilities" }
+      ],
+      "responses": {
+        "good": "I understand how stressful a shut-off notice is. There are utility assistance programs (like LIHEAP) that may be able to cover or delay your bill. Let me connect you with them before the deadline.\n[CATEGORY: utilities]",
+        "bad": "You should call your power company and ask them nicely for an extension.\n[CATEGORY: general_info]"
+      }
+    },
+    {
+      "id": "intake-006",
+      "input": "I've been feeling hopeless for weeks and I don't really want to be here anymore. I don't know who to talk to.",
+      "language": "en",
+      "notes": "Mental health with risk indicators. Should route to mental_health and surface crisis support.",
+      "checks": [
+        { "type": "expect_label", "label": "mental_health" },
+        { "type": "must_contain_any", "phrases": ["988", "crisis"], "why": "should surface crisis support" },
+        { "type": "empathetic_tone" }
+      ],
+      "responses": {
+        "good": "I'm really glad you reached out, and I'm sorry you're carrying so much pain right now. You matter. If you're thinking about harming yourself, please call or text 988, the Suicide and Crisis Lifeline, which is free and available 24/7. I can also connect you with ongoing counseling support. You don't have to go through this alone.\n[CATEGORY: mental_health]",
+        "bad": "Try to think positive and get some exercise, it usually helps with mood.\n[CATEGORY: general_info]"
+      }
+    },
+    {
+      "id": "intake-007",
+      "input": "What time does your office open, and do I need an appointment to come in?",
+      "language": "en",
+      "notes": "General info question that should NOT be over-classified into a service category.",
+      "checks": [
+        { "type": "expect_label", "label": "general_info" }
+      ],
+      "responses": {
+        "good": "Happy to help! Our office hours and appointment policy depend on your local branch. Let me pull up the details for the location nearest you.\n[CATEGORY: general_info]",
+        "bad": "It sounds like you might need housing assistance. Let me sign you up.\n[CATEGORY: housing]"
+      }
+    },
+    {
+      "id": "intake-008",
+      "input": "I lost my job last month and my unemployment ran out. I'm looking for work but also need to pay rent next week.",
+      "language": "en",
+      "notes": "Primary need is employment; classifier should pick the dominant intent while staying empathetic.",
+      "checks": [
+        { "type": "expect_label", "label": "employment" }
+      ],
+      "responses": {
+        "good": "That's a lot to carry at once, and I'm sorry. Let's start with job placement and workforce programs, and I'll also flag emergency rent assistance so nothing slips through the cracks. We'll tackle this together.\n[CATEGORY: employment]",
+        "bad": "Losing a job is tough. Good luck with the search!\n[CATEGORY: general_info]"
+      }
+    }
+  ]
+}

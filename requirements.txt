@@ -1,0 +1,5 @@
+# The eval harness runs fully offline on the Python standard library.
+# The dependency below is only needed for the optional live modes:
+#   python3 src/run_eval.py --responses live   (generate responses from a model)
+#   python3 src/run_eval.py --judge            (LLM-as-judge grading)
+anthropic>=0.40.0
