@@ -45,9 +45,12 @@ To grade a **live** model instead of the bundled examples:
 
 ```bash
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-...          # or: cp .env.example .env and paste your key
 python3 src/run_eval.py --responses live --model claude-sonnet-4-5
 ```
+
+Your key is never stored in the repo — supply it via the environment or a local,
+gitignored `.env` (auto-loaded on startup). See [`docs/live-run.md`](docs/live-run.md).
 
 Add `--judge` to also grade each case with an LLM-as-judge (see
 [`src/judge_prompt.md`](src/judge_prompt.md)). Full walkthrough of the live and

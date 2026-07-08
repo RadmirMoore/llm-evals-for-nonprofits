@@ -9,6 +9,7 @@ env/
 # Env / secrets
 .env
 .env.*
+!.env.example
 
 # OS / editor
 .DS_Store

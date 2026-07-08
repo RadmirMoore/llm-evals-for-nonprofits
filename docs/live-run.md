@@ -13,8 +13,22 @@ repo runs with zero setup. To grade what a **real model** actually says, use
 
 ```bash
 pip install -r requirements.txt      # installs `anthropic`
-export ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+Then provide your key one of two ways:
+
+```bash
+# Option 1 - environment variable (lives only in this shell session):
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Option 2 - a local .env file (gitignored, never committed):
+cp .env.example .env
+# then edit .env and paste your key
+```
+
+`src/run_eval.py` auto-loads `.env` on startup (a tiny built-in loader, no extra
+dependency). An explicit `export` always overrides the file. Each user supplies
+their **own** key — it is never stored in the repo.
 
 ## Grade a live model
 

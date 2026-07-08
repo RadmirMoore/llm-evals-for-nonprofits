@@ -9,6 +9,7 @@ Two things are protected here:
 `src/` is not a package, so it is added to sys.path before importing the module.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -100,3 +101,25 @@ def test_spanish_language_detected():
         "I am sorry you are going through this.", {"language": "es"}, {}
     )
     assert ok.passed and not en.passed
+
+
+# --- .env loader ----------------------------------------------------------- #
+def test_load_dotenv_populates_environ(tmp_path, monkeypatch):
+    (tmp_path / ".env").write_text('MY_TEST_KEY="abc123"\n# a comment\n\n', encoding="utf-8")
+    monkeypatch.setattr(run_eval, "ROOT", tmp_path)
+    monkeypatch.delenv("MY_TEST_KEY", raising=False)
+    run_eval._load_dotenv()
+    assert os.environ["MY_TEST_KEY"] == "abc123"
+
+
+def test_load_dotenv_does_not_override_existing(tmp_path, monkeypatch):
+    (tmp_path / ".env").write_text("MY_TEST_KEY=fromfile\n", encoding="utf-8")
+    monkeypatch.setattr(run_eval, "ROOT", tmp_path)
+    monkeypatch.setenv("MY_TEST_KEY", "fromenv")
+    run_eval._load_dotenv()
+    assert os.environ["MY_TEST_KEY"] == "fromenv"
+
+
+def test_load_dotenv_missing_file_is_noop(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_eval, "ROOT", tmp_path)
+    run_eval._load_dotenv()  # should not raise
