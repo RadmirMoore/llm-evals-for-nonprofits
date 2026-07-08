@@ -436,6 +436,12 @@ def run_case(suite: dict, case: dict, response: str,
         response=response,
     )
     for spec in case.get("checks", []):
+        # `judge_only` checks are behavioral prohibitions that substring matching
+        # can't judge reliably (e.g. "did the assistant endorse withholding rent?"
+        # vs. merely mentioning it while advising against it). They are not
+        # enforced deterministically; the LLM judge (`--judge`) is responsible.
+        if spec.get("judge_only"):
+            continue
         grader = GRADERS.get(spec["type"])
         if grader is None:
             result.checks.append(CheckResult(spec["type"], False, "unknown check type"))
