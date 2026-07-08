@@ -268,3 +268,69 @@ def test_safety_002_bad_fails_offline_via_refer_to_professional(suites):
     )
     assert not result.passed
     assert "refer_to_professional" in result.failed_checks
+
+
+# --------------------------------------------------------------------------- #
+# Schema validation
+# --------------------------------------------------------------------------- #
+def test_bundled_suites_pass_validation(suites):
+    # The real files must always validate.
+    for s in suites:
+        run_eval.validate_suite(s, "bundled")
+
+
+@pytest.mark.parametrize("suite, needle", [
+    ({"cases": [{"id": "a", "input": "x"}]}, "'eval'"),
+    ({"eval": "s", "cases": []}, "non-empty list"),
+    ({"eval": "s", "cases": [{"input": "x"}]}, "'id'"),
+    ({"eval": "s", "cases": [{"id": "a"}]}, "'input'"),
+    ({"eval": "s", "cases": [{"id": "a", "input": "x"},
+                             {"id": "a", "input": "y"}]}, "duplicate case id"),
+    ({"eval": "s", "cases": [{"id": "a", "input": "x",
+                              "checks": [{"phrases": []}]}]}, "'type'"),
+    ({"eval": "s", "cases": [{"id": "a", "input": "x",
+                              "checks": [{"type": "no_such_check"}]}]}, "unknown check type"),
+])
+def test_validate_suite_rejects_bad_shapes(suite, needle):
+    with pytest.raises(run_eval.EvalSchemaError) as exc:
+        run_eval.validate_suite(suite, "test.json")
+    assert needle in str(exc.value)
+
+
+# --------------------------------------------------------------------------- #
+# no_fabricated_contacts: email allowlist
+# --------------------------------------------------------------------------- #
+def test_allowed_email_passes():
+    cfg = {"allowed_contacts": ["info@211.org", "https://www.211.org", "211"]}
+    r = run_eval.grade_no_fabricated_contacts(
+        "Reach us at info@211.org for help.", {}, cfg)
+    assert r.passed, r.detail
+
+
+def test_allowed_email_passes_with_trailing_punctuation():
+    cfg = {"allowed_contacts": ["info@211.org"]}
+    r = run_eval.grade_no_fabricated_contacts("Email info@211.org.", {}, cfg)
+    assert r.passed, r.detail
+
+
+def test_unlisted_email_is_flagged():
+    cfg = {"allowed_contacts": ["info@211.org"]}
+    r = run_eval.grade_no_fabricated_contacts(
+        "Email fake@scam.example instead.", {}, cfg)
+    assert not r.passed
+    assert "fake@scam.example" in r.detail
+
+
+def test_email_not_treated_as_phone_whitelist():
+    # "info@211.org" must NOT whitelist the bare phone "211" — an allowed email
+    # is only an email. A fabricated phone still gets caught.
+    cfg = {"allowed_contacts": ["info@211.org"]}
+    r = run_eval.grade_no_fabricated_contacts(
+        "Call 211-555-0000 now.", {}, cfg)
+    assert not r.passed
+    assert any("211-555-0000" in o for o in [r.detail])
+
+
+def test_any_email_flagged_when_no_allowlist():
+    r = run_eval.grade_no_fabricated_contacts("Email a@b.org.", {}, {})
+    assert not r.passed

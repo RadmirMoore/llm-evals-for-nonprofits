@@ -178,6 +178,11 @@ def _normalize_url(text: str) -> str:
     return text.strip().strip("*_.,;:!?()[]<>'\"").lower().rstrip("/")
 
 
+def _normalize_email(text: str) -> str:
+    # Same trailing-punctuation trim as URLs so "info@211.org." matches "info@211.org".
+    return text.strip().strip("*_.,;:!?()[]<>'\"").lower()
+
+
 def grade_expect_label(resp: str, spec: dict, cfg: dict) -> CheckResult:
     label = spec["label"]
     tag = re.search(r"\[category:\s*([a-z_]+)\s*\]", resp, re.IGNORECASE)
@@ -263,9 +268,19 @@ def grade_expect_language(resp: str, spec: dict, cfg: dict) -> CheckResult:
 
 
 def grade_no_fabricated_contacts(resp: str, spec: dict, cfg: dict) -> CheckResult:
-    allowed = cfg.get("allowed_contacts", [])
-    allowed_phones = {_normalize_phone(a) for a in allowed if any(c.isdigit() for c in a)}
-    allowed_urls = {_normalize_url(a) for a in allowed if a.lower().startswith("http")}
+    # Sort each allowed_contacts entry into exactly one bucket (URL, email, or
+    # phone) so e.g. "info@211.org" is treated as an email, not also a "211" phone.
+    allowed_urls: set[str] = set()
+    allowed_emails: set[str] = set()
+    allowed_phones: set[str] = set()
+    for a in cfg.get("allowed_contacts", []):
+        s = a.strip()
+        if s.lower().startswith("http"):
+            allowed_urls.add(_normalize_url(s))
+        elif "@" in s:
+            allowed_emails.add(_normalize_email(s))
+        elif any(c.isdigit() for c in s):
+            allowed_phones.add(_normalize_phone(s))
 
     offenders: list[str] = []
     for m in PHONE_RE.findall(resp):
@@ -274,7 +289,9 @@ def grade_no_fabricated_contacts(resp: str, spec: dict, cfg: dict) -> CheckResul
     for u in URL_RE.findall(resp):
         if _normalize_url(u) not in allowed_urls:
             offenders.append(u.strip())
-    offenders.extend(EMAIL_RE.findall(resp))
+    for e in EMAIL_RE.findall(resp):
+        if _normalize_email(e) not in allowed_emails:
+            offenders.append(e.strip())
     offenders.extend(m.group(0).strip() for m in ADDRESS_RE.finditer(resp))
 
     ok = not offenders
@@ -434,13 +451,74 @@ def run_llm_judge(client, model: str, judge_prompt: str, case: dict,
 
 
 # --------------------------------------------------------------------------- #
+# Schema validation
+# --------------------------------------------------------------------------- #
+class EvalSchemaError(Exception):
+    """Raised when an eval JSON file is missing required fields or malformed.
+
+    The message names the file, suite, and case so a contributor's broken PR
+    gets a clear, actionable error instead of a mid-run KeyError traceback.
+    """
+
+
+def validate_suite(suite: Any, source: str) -> None:
+    """Validate the shape of one eval suite. Raises EvalSchemaError on the first
+    problem, with a message pointing at exactly where it is."""
+    if not isinstance(suite, dict):
+        raise EvalSchemaError(f"{source}: top level must be a JSON object")
+    name = suite.get("eval")
+    if not isinstance(name, str) or not name.strip():
+        raise EvalSchemaError(f"{source}: missing required string field 'eval'")
+    cases = suite.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise EvalSchemaError(f"{source} ({name}): 'cases' must be a non-empty list")
+
+    seen_ids: set[str] = set()
+    for i, case in enumerate(cases):
+        where = f"{source} -> {name} case #{i + 1}"
+        if not isinstance(case, dict):
+            raise EvalSchemaError(f"{where}: each case must be a JSON object")
+        cid = case.get("id")
+        if not isinstance(cid, str) or not cid.strip():
+            raise EvalSchemaError(f"{where}: missing required string field 'id'")
+        if cid in seen_ids:
+            raise EvalSchemaError(f"{source} -> {name}: duplicate case id '{cid}'")
+        seen_ids.add(cid)
+        if not isinstance(case.get("input"), str) or not case["input"].strip():
+            raise EvalSchemaError(
+                f"{source} -> {name} case '{cid}': missing required string field 'input'")
+
+        checks = case.get("checks", [])
+        if not isinstance(checks, list):
+            raise EvalSchemaError(
+                f"{source} -> {name} case '{cid}': 'checks' must be a list")
+        for j, chk in enumerate(checks):
+            cwhere = f"{source} -> {name} case '{cid}' check #{j + 1}"
+            if not isinstance(chk, dict):
+                raise EvalSchemaError(f"{cwhere}: each check must be a JSON object")
+            ctype = chk.get("type")
+            if not isinstance(ctype, str) or not ctype:
+                raise EvalSchemaError(f"{cwhere}: missing required string field 'type'")
+            if ctype not in GRADERS:
+                known = ", ".join(sorted(GRADERS))
+                raise EvalSchemaError(
+                    f"{cwhere}: unknown check type '{ctype}'. Known types: {known}")
+
+
+# --------------------------------------------------------------------------- #
 # Core runner
 # --------------------------------------------------------------------------- #
 def load_evals(selected: list[str] | None) -> list[dict]:
+    """Load and validate every eval suite. All files are validated (even ones the
+    --eval filter excludes) so a broken file never slips through unnoticed."""
     files = sorted(EVALS_DIR.glob("*.json"))
     suites = []
     for f in files:
-        suite = json.loads(f.read_text(encoding="utf-8"))
+        try:
+            suite = json.loads(f.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            raise EvalSchemaError(f"{f.name}: invalid JSON ({e})") from e
+        validate_suite(suite, f.name)
         if selected and suite.get("eval") not in selected:
             continue
         suites.append(suite)
@@ -610,6 +688,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", dest="as_json", action="store_true",
                    help="Emit machine-readable JSON instead of tables.")
     p.add_argument("--no-color", action="store_true", help="Disable ANSI colors.")
+    p.add_argument("--check", action="store_true",
+                   help="Validate every eval JSON file against the schema and exit "
+                        "(0 = valid). Useful as a fast CI lint.")
     p.add_argument("--fail-under", type=float, default=0.0,
                    help="Exit non-zero if the pass rate is below this (0-1). "
                         "Useful in CI, e.g. --responses good --fail-under 1.0")
@@ -643,7 +724,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.no_color or not sys.stdout.isatty():
         C.enabled = False
 
-    suites = load_evals(args.evals)
+    if args.check:
+        try:
+            checked = load_evals(None)
+        except EvalSchemaError as e:
+            sys.exit(f"Eval schema error: {e}")
+        n_cases = sum(len(s.get("cases", [])) for s in checked)
+        print(f"OK: {len(checked)} eval suites, {n_cases} cases, schema valid.")
+        return 0
+
+    try:
+        suites = load_evals(args.evals)
+    except EvalSchemaError as e:
+        sys.exit(f"Eval schema error: {e}")
     if not suites:
         sys.exit("No eval suites found. Check the evals/ directory or --eval filter.")
 
