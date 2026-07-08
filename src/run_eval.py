@@ -12,13 +12,19 @@ nonprofit help desk:
                                programs; route to verified channels instead.
   4. tone & language         - empathetic, and answers Spanish/English messages.
 
-Two ways to supply the responses being graded:
+Ways to supply the responses being graded:
 
   --responses good|bad|both   Grade the bundled example responses. Runs fully
                               offline with zero setup (great for a demo / CI).
   --responses live            Generate fresh responses from an Anthropic model
-                              (requires `pip install anthropic` and
-                              ANTHROPIC_API_KEY).
+                              (requires `pip install anthropic` + ANTHROPIC_API_KEY).
+  --responses command --cmd   Grade YOUR assistant: run a shell command per case
+                              (message on stdin, or templated as {input}).
+  --responses http --url      POST {"input": ...} to an endpoint, read {"response": ...}.
+  --responses module --target Import a Python callable `pkg.mod:func(input)->str`.
+
+The command/http/module adapters let you point the harness at any stack (RAG,
+tools, another provider) without editing this file.
 
 Add --judge to additionally grade each case with an LLM-as-judge using
 ../src/judge_prompt.md (requires the anthropic package + API key).
@@ -27,10 +33,15 @@ Add --judge to additionally grade each case with an LLM-as-judge using
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import re
+import shlex
+import subprocess
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -294,6 +305,84 @@ def generate_live_response(client, model: str, user_message: str) -> str:
     return "".join(block.text for block in msg.content if block.type == "text")
 
 
+class AdapterError(Exception):
+    """Raised when an external response adapter (command/http/module) fails.
+
+    Caught per-case so one broken response fails that case instead of aborting
+    the whole run.
+    """
+
+
+def run_command_adapter(cmd: str, user_message: str, timeout: float) -> str:
+    """Run a shell command that returns the assistant's reply.
+
+    If the command contains `{input}`, the (shell-quoted) message is substituted
+    there; otherwise the message is written to the command's stdin. The reply is
+    read from stdout.
+    """
+    try:
+        if "{input}" in cmd:
+            rendered = cmd.replace("{input}", shlex.quote(user_message))
+            proc = subprocess.run(rendered, shell=True, capture_output=True,
+                                  text=True, timeout=timeout)
+        else:
+            proc = subprocess.run(shlex.split(cmd), input=user_message,
+                                  capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise AdapterError(f"command timed out after {timeout}s") from None
+    except OSError as e:
+        raise AdapterError(f"could not run command: {e}") from e
+    if proc.returncode != 0:
+        raise AdapterError(
+            f"command exited {proc.returncode}: {proc.stderr.strip()[:200]}"
+        )
+    return proc.stdout.strip()
+
+
+def run_http_adapter(url: str, user_message: str, timeout: float,
+                     request_field: str, response_field: str) -> str:
+    """POST {request_field: message} to url and read {response_field} from the JSON reply."""
+    data = json.dumps({request_field: user_message}).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=data, method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8")
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise AdapterError(f"HTTP request to {url} failed: {e}") from e
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise AdapterError(f"HTTP response was not JSON: {body[:120]}") from None
+    if not isinstance(payload, dict) or response_field not in payload:
+        raise AdapterError(f"HTTP response JSON missing field '{response_field}'")
+    return str(payload[response_field])
+
+
+def load_module_callable(target: str) -> Callable[[str], str]:
+    """Resolve a 'package.module:function' string to a callable(input)->str."""
+    if ":" not in target:
+        raise AdapterError("target must look like 'package.module:function'")
+    mod_name, func_name = target.split(":", 1)
+    try:
+        module = importlib.import_module(mod_name)
+    except ImportError as e:
+        raise AdapterError(f"could not import module '{mod_name}': {e}") from e
+    func = getattr(module, func_name, None)
+    if not callable(func):
+        raise AdapterError(f"'{target}' is not a callable")
+    return func
+
+
+def run_module_adapter(func: Callable[[str], str], user_message: str) -> str:
+    try:
+        return str(func(user_message))
+    except Exception as e:  # noqa: BLE001 - surface any adapter failure per-case
+        raise AdapterError(f"module callable raised: {e}") from e
+
+
 def run_llm_judge(client, model: str, judge_prompt: str, case: dict,
                   expected_category: str | None, response: str, focus: str) -> dict:
     payload = {
@@ -361,14 +450,21 @@ def run_case(suite: dict, case: dict, response: str,
     return result
 
 
-def resolve_response(case: dict, source: str, live_ctx: dict | None) -> str:
+def resolve_response(case: dict, source: str, resp_ctx: dict | None) -> str:
     if source in ("good", "bad"):
         responses = case.get("responses", {})
         if source not in responses:
             return f"[no '{source}' example response provided]"
         return responses[source]
     if source == "live":
-        return generate_live_response(live_ctx["client"], live_ctx["model"], case["input"])
+        return generate_live_response(resp_ctx["client"], resp_ctx["model"], case["input"])
+    if source == "command":
+        return run_command_adapter(resp_ctx["cmd"], case["input"], resp_ctx["timeout"])
+    if source == "http":
+        return run_http_adapter(resp_ctx["url"], case["input"], resp_ctx["timeout"],
+                                resp_ctx["request_field"], resp_ctx["response_field"])
+    if source == "module":
+        return run_module_adapter(resp_ctx["func"], case["input"])
     raise ValueError(f"unknown source '{source}'")
 
 
@@ -444,10 +540,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run LLM quality/safety evals for a nonprofit assistant.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--responses", choices=["good", "bad", "both", "live"],
+    p.add_argument("--responses",
+                   choices=["good", "bad", "both", "live", "command", "http", "module"],
                    default="good",
                    help="Which responses to grade. 'good'/'bad' use bundled examples "
-                        "(offline). 'both' shows both. 'live' calls an Anthropic model.")
+                        "(offline). 'both' shows both. 'live' calls an Anthropic model. "
+                        "'command'/'http'/'module' grade your own assistant.")
     p.add_argument("--eval", action="append", dest="evals", default=None,
                    help="Only run this eval suite (repeatable). "
                         "E.g. --eval safety-boundaries")
@@ -457,6 +555,22 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Also grade each case with the LLM-as-judge (needs API key).")
     p.add_argument("--model", default=DEFAULT_MODEL, help="Model for live responses.")
     p.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL, help="Model for the judge.")
+    # Adapters for grading your own assistant:
+    p.add_argument("--cmd",
+                   help="[--responses command] Shell command to run per case. The client "
+                        "message is sent on stdin, or substituted for {input} in the command.")
+    p.add_argument("--url",
+                   help="[--responses http] Endpoint that receives a POST of "
+                        '{"input": "..."} and returns {"response": "..."}.')
+    p.add_argument("--request-field", default="input",
+                   help="[--responses http] JSON field to send the message in. Default: input")
+    p.add_argument("--response-field", default="response",
+                   help="[--responses http] JSON field to read the reply from. Default: response")
+    p.add_argument("--target",
+                   help="[--responses module] Python callable as 'package.module:function', "
+                        "taking the message and returning the reply string.")
+    p.add_argument("--timeout", type=float, default=60.0,
+                   help="Per-case timeout (seconds) for the command/http adapters. Default: 60")
     p.add_argument("--verbose", action="store_true",
                    help="Print every check result and the full response.")
     p.add_argument("--json", dest="as_json", action="store_true",
@@ -469,13 +583,23 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_source(source: str, suites: list[dict], case_filter: str | None,
-               live_ctx: dict | None, judge_ctx: dict | None) -> list[CaseResult]:
+               resp_ctx: dict | None, judge_ctx: dict | None) -> list[CaseResult]:
     results: list[CaseResult] = []
     for suite in suites:
         for case in suite.get("cases", []):
             if case_filter and case_filter not in case["id"]:
                 continue
-            response = resolve_response(case, source, live_ctx)
+            try:
+                response = resolve_response(case, source, resp_ctx)
+            except AdapterError as e:
+                results.append(CaseResult(
+                    eval_name=suite["eval"],
+                    case_id=case["id"],
+                    language=case.get("language", "en"),
+                    checks=[CheckResult("adapter", False, str(e))],
+                    response=f"[adapter error: {e}]",
+                ))
+                continue
             results.append(run_case(suite, case, response, judge_ctx))
     return results
 
@@ -489,30 +613,53 @@ def main(argv: list[str] | None = None) -> int:
     if not suites:
         sys.exit("No eval suites found. Check the evals/ directory or --eval filter.")
 
-    live_ctx = None
-    judge_ctx = None
+    client = None
     if args.responses == "live" or args.judge:
         client = get_client()
-        if args.responses == "live":
-            live_ctx = {"client": client, "model": args.model}
-        if args.judge:
-            judge_ctx = {
-                "client": client,
-                "model": args.judge_model,
-                "prompt": JUDGE_PROMPT_PATH.read_text(encoding="utf-8"),
-            }
+
+    resp_ctx = None
+    if args.responses == "live":
+        resp_ctx = {"client": client, "model": args.model}
+    elif args.responses == "command":
+        if not args.cmd:
+            sys.exit("--responses command requires --cmd \"<shell command>\"")
+        resp_ctx = {"cmd": args.cmd, "timeout": args.timeout}
+    elif args.responses == "http":
+        if not args.url:
+            sys.exit("--responses http requires --url <endpoint>")
+        resp_ctx = {"url": args.url, "timeout": args.timeout,
+                    "request_field": args.request_field,
+                    "response_field": args.response_field}
+    elif args.responses == "module":
+        if not args.target:
+            sys.exit("--responses module requires --target package.module:function")
+        try:
+            resp_ctx = {"func": load_module_callable(args.target)}
+        except AdapterError as e:
+            sys.exit(f"--target error: {e}")
+
+    judge_ctx = None
+    if args.judge:
+        judge_ctx = {
+            "client": client,
+            "model": args.judge_model,
+            "prompt": JUDGE_PROMPT_PATH.read_text(encoding="utf-8"),
+        }
 
     sources = ["good", "bad"] if args.responses == "both" else [args.responses]
     labels = {
         "good": "Grading bundled GOOD responses (expected: mostly PASS)",
         "bad": "Grading bundled BAD responses (expected: mostly FAIL - evals should catch these)",
         "live": f"Grading LIVE responses from {args.model}",
+        "command": f"Grading responses from command: {args.cmd}",
+        "http": f"Grading responses from HTTP endpoint: {args.url}",
+        "module": f"Grading responses from module: {args.target}",
     }
 
     all_results: list[CaseResult] = []
     grouped: list[tuple[str, list[CaseResult]]] = []
     for src in sources:
-        res = run_source(src, suites, args.case_filter, live_ctx, judge_ctx)
+        res = run_source(src, suites, args.case_filter, resp_ctx, judge_ctx)
         grouped.append((src, res))
         all_results.extend(res)
 

@@ -162,11 +162,13 @@ This is a demonstration harness, and it's honest about what it is:
    real allowlist makes that signal accurate for your context.)
 2. **Grow the cases from real transcripts.** Every time the bot gets something
    wrong, add a case (with the correct behavior) so it can never silently regress.
-3. **Point it at your actual assistant.** `--responses live` grades an Anthropic
-   model out of the box. To grade a different stack (RAG, tools, another
-   provider, or an HTTP service) today, swap `generate_live_response` in
-   `src/run_eval.py`. A no-code adapter seam (`command` / `http` / `module`
-   sources) is planned — see the [pluggable-adapter epic](https://github.com/RadmirMoore/llm-evals-for-nonprofits/issues/9).
+3. **Point it at your actual assistant — no code edits.** `--responses live`
+   grades an Anthropic model out of the box. To grade any other stack (RAG,
+   tools, another provider, or a running service), use an adapter:
+   `--responses command --cmd "./my_assistant.sh"` (message on stdin),
+   `--responses http --url https://my-svc/answer`, or
+   `--responses module --target mypkg.assistant:answer`. See
+   [`docs/live-run.md`](docs/live-run.md#point-it-at-your-own-assistant-no-code-edits).
 4. **Gate releases in CI.** Run `--responses good --fail-under 1.0`; a failing
    check blocks the deploy. (This repo follows a Git-based workflow — evals run
    before merge to `main`, and `main` is what production deploys.)

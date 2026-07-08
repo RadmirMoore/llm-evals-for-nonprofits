@@ -133,13 +133,63 @@ dashboards or CI artifacts:
 python3 src/run_eval.py --responses live --judge --json > results.json
 ```
 
-## Point it at your own assistant
+## Point it at your own assistant (no code edits)
 
-If your production assistant isn't a single Anthropic call (e.g. it's a RAG
-pipeline, has tools, or runs on another provider), replace `generate_live_response`
-in `src/run_eval.py` with a thin adapter that returns your system's answer for a
-given `user_message`. Everything else — the checks, the judge, the table — stays
-the same.
+If your assistant isn't a single Anthropic call (a RAG pipeline, tools, another
+provider, or a running service), grade it with one of three adapters. Each just
+turns a client message into your assistant's reply; the checks, judge, table, and
+`--json` all work identically. A failed/timed-out adapter fails **that case**
+(shown as an `adapter` check) instead of aborting the run.
+
+### 1. `command` — run any program (most universal)
+
+Your program receives the client message on **stdin** and prints the reply to
+**stdout**:
+
+```bash
+python3 src/run_eval.py --responses command --cmd "./my_assistant.sh"
+```
+
+Or template the message into the command with `{input}` (it is shell-quoted):
+
+```bash
+python3 src/run_eval.py --responses command --cmd "python my_bot.py --message {input}"
+```
+
+Works with any language/stack. `--timeout` (default 60s) bounds each call.
+
+### 2. `http` — call a running service
+
+POSTs `{"input": "<message>"}` and reads `{"response": "<reply>"}`:
+
+```bash
+python3 src/run_eval.py --responses http --url https://my-service/answer
+```
+
+Field names are configurable: `--request-field` / `--response-field`.
+
+### 3. `module` — a Python callable
+
+Point to a function `answer(message: str) -> str`:
+
+```bash
+python3 src/run_eval.py --responses module --target mypackage.assistant:answer
+```
+
+`mypackage` must be importable (on `PYTHONPATH`). Best for Python-native stacks.
+
+### Combine with the judge and CI
+
+Adapters compose with everything else, e.g. grade your service with both layers
+and gate a release:
+
+```bash
+python3 src/run_eval.py --responses command --cmd "./my_assistant.sh" \
+  --judge --fail-under 1.0 --json > results.json
+```
+
+The built-in Anthropic path (`--responses live`) is simply the reference
+implementation of this same seam.
 
 ## Cost & reliability notes
 
