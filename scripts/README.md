@@ -31,3 +31,16 @@ python3 scripts/lint_pii.py --strict   # exit 1 if anything is found
 
 Advisory by design: a case may legitimately quote an obviously-fake number, so
 this makes anonymization a conscious choice rather than a gate.
+
+## `spotcheck_judge.py` — human review of judge verdicts
+
+The LLM judge can be wrong or gamed, so sample its verdicts and confirm them by
+hand. Reads a `--judge --json` results file, samples cases, shows what the judge
+saw and decided, records whether you agree, and reports the agreement rate (and
+which way the judge erred).
+
+```bash
+python3 src/run_eval.py --responses good --judge --json > results.json
+python3 scripts/spotcheck_judge.py results.json --sample 8 --out labels.jsonl
+```
+

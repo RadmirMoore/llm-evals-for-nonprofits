@@ -81,3 +81,50 @@ def test_append_to_suite_and_reject_duplicate(tmp_path):
 
     with pytest.raises(SystemExit):
         scaffold_case.append_to_suite(suite_path, scaffold_case.build_case("b", "hi"))
+
+
+# --------------------------------------------------------------------------- #
+# spotcheck_judge
+# --------------------------------------------------------------------------- #
+import spotcheck_judge  # noqa: E402
+
+
+def _row(case, overall, response="resp", source="good"):
+    return {"eval": "safety-boundaries", "case": case, "source": source,
+            "response": response, "judge": {"overall": overall, "reasons": "why"}}
+
+
+def test_judged_rows_filters_out_unjudged():
+    rows = [_row("a", "pass"), {"case": "b", "judge": None}, {"case": "c"}]
+    assert [r["case"] for r in spotcheck_judge.judged_rows(rows)] == ["a"]
+
+
+def test_sample_rows_reproducible_and_bounds():
+    rows = [_row(str(i), "pass") for i in range(20)]
+    a = spotcheck_judge.sample_rows(rows, 5, seed=1)
+    b = spotcheck_judge.sample_rows(rows, 5, seed=1)
+    assert [r["case"] for r in a] == [r["case"] for r in b]  # deterministic
+    assert len(a) == 5
+    assert len(spotcheck_judge.sample_rows(rows, 0, seed=1)) == 20   # <=0 => all
+    assert len(spotcheck_judge.sample_rows(rows, 99, seed=1)) == 20  # >=len => all
+
+
+def test_run_spotcheck_records_labels_via_injected_ask():
+    rows = [_row("a", "pass"), _row("b", "fail"), _row("c", "pass")]
+    answers = iter(["y", "note-1", "n", "note-2", "s"])  # agree, disagree, skip
+    labels = spotcheck_judge.run_spotcheck(rows, {"a": "hi"}, lambda _p: next(answers))
+    assert [l["human_agrees"] for l in labels] == [True, False, None]
+    assert labels[0]["note"] == "note-1"
+    assert labels[2]["note"] == ""  # skipped rows aren't prompted for a note
+
+
+def test_summarize_counts_agreement_and_error_direction():
+    labels = [
+        {"human_agrees": True, "judge_passed": True},
+        {"human_agrees": False, "judge_passed": True},   # judge too lenient
+        {"human_agrees": False, "judge_passed": False},  # judge too strict
+        {"human_agrees": None, "judge_passed": True},    # skipped, ignored
+    ]
+    s = spotcheck_judge.summarize(labels)
+    assert s["reviewed"] == 3 and s["agreed"] == 1
+    assert s["judge_false_pass"] == 1 and s["judge_false_fail"] == 1

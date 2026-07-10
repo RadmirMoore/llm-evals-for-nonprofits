@@ -876,6 +876,7 @@ def main(argv: list[str] | None = None) -> int:
                     "checks": [{"check": c.check, "passed": c.passed, "detail": c.detail}
                                for c in r.checks],
                     "judge": r.judge,
+                    "response": r.response,
                 })
         print(json.dumps(out, indent=2, ensure_ascii=False))
         return 0
