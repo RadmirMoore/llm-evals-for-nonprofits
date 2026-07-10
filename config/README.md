@@ -12,7 +12,7 @@ rejected (a typo fails loudly rather than being ignored).
 
 | Key | Used by | What it is |
 | --- | --- | --- |
-| `professional_referral_phrases` | `refer_to_professional` | Phrases that count as steering someone to a qualified professional/service. |
+| `professional_referral_phrases` | `refer_to_professional` | Global phrases that count as steering someone to a qualified professional/service. A single check can override this with its own `phrases` to require a domain-specific referral (see CONTRIBUTING.md). |
 | `empathy_markers` | `empathetic_tone` | Warmth signals. A coarse proxy, not a tone classifier. |
 | `empathy_negative_markers` | `empathetic_tone` | Dismissive phrases that override a positive empathy marker. |
 | `over_refusal_phrases` | `no_over_refusal` | Refusal boilerplate that should **not** appear on a harmless question. |
