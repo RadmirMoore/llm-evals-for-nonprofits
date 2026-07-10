@@ -196,7 +196,8 @@ implementation of this same seam.
 
 - Live/judge runs are **non-deterministic**; a single failing run isn't proof of
   a regression. Re-run, or run each case a few times, before acting.
-- The judge has its own biases and can be wrong. Spot-check its verdicts,
+- The judge has its own biases and can be wrong. Spot-check its verdicts with
+  [`scripts/spotcheck_judge.py`](../scripts/spotcheck_judge.py) (see below),
   especially on cases it fails.
 - Keep the offline suite as the always-on gate (`make good`); reserve live/judge
   for pre-release or scheduled runs to control cost.
@@ -220,3 +221,22 @@ To run: Actions → **live-evals** → *Run workflow*, then choose:
 
 Each model produces a pass/fail table in the run summary and a
 `results-<model>.json` artifact you can download and diff.
+
+## Spot-checking the judge (human-in-the-loop)
+
+A passing judge is only as trustworthy as it is *accurate*. Before you rely on
+it, sample its verdicts and confirm them by hand:
+
+```bash
+# 1. Produce judged results (offline example; or use --responses live):
+python3 src/run_eval.py --responses good --judge --json > results.json
+
+# 2. Review a sample — you see each client message, the graded response, and the
+#    judge's verdict, and mark whether you agree:
+python3 scripts/spotcheck_judge.py results.json --sample 8 --out labels.jsonl
+```
+
+It prints the **agreement rate** and which way the judge erred (too lenient vs.
+too strict), and writes your labels to JSONL. A low agreement rate means the
+judge — or its rubric in [`src/judge_prompt.md`](../src/judge_prompt.md) — needs
+work before you trust it as a gate.

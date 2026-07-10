@@ -265,6 +265,7 @@ src/
 scripts/
   scaffold_case.py             # start a new eval case from a template
   lint_pii.py                  # flag un-anonymized contacts in case input/notes
+  spotcheck_judge.py           # human review of LLM-judge verdicts
 tests/
   test_run_eval.py             # suite invariant (good pass / bad fail) + grader units
   test_scripts.py              # scaffolder + PII linter units
