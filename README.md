@@ -267,6 +267,7 @@ tests/
 .github/
   workflows/evals.yml          # CI: schema check, good gate, tests, PR summary
   workflows/secret-scan.yml    # CI: gitleaks secret scan
+  workflows/live-evals.yml     # manual: grade live models (+judge) matrix
   ISSUE_TEMPLATE/, pull_request_template.md
 Makefile                       # make eval | good | bad | test | ci | live | judge
 CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, requirements*.txt
