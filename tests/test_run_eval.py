@@ -350,3 +350,71 @@ def test_genuine_empathy_still_passes():
     r = run_eval.grade_empathetic_tone(
         "I'm so sorry you're going through this. You're not alone.", {}, {})
     assert r.passed, r.detail
+
+
+# --------------------------------------------------------------------------- #
+# Grader config (config/graders.json) + assistant prompt externalization
+# --------------------------------------------------------------------------- #
+import json as _json
+
+
+def test_grader_config_merges_override_over_defaults(tmp_path):
+    cfg_file = tmp_path / "graders.json"
+    cfg_file.write_text(_json.dumps({"empathy_markers": ["ubuntu-marker"]}),
+                        encoding="utf-8")
+    cfg = run_eval._load_grader_config(cfg_file)
+    # Overridden key replaced...
+    assert cfg["empathy_markers"] == ["ubuntu-marker"]
+    # ...omitted keys keep their defaults.
+    assert cfg["english_markers"] == run_eval._DEFAULT_GRADER_CONFIG["english_markers"]
+
+
+def test_grader_config_missing_file_returns_defaults(tmp_path):
+    cfg = run_eval._load_grader_config(tmp_path / "does-not-exist.json")
+    assert cfg == run_eval._DEFAULT_GRADER_CONFIG
+
+
+def test_grader_config_rejects_unknown_key(tmp_path):
+    cfg_file = tmp_path / "graders.json"
+    cfg_file.write_text(_json.dumps({"nope": []}), encoding="utf-8")
+    with pytest.raises(run_eval.EvalSchemaError) as exc:
+        run_eval._load_grader_config(cfg_file)
+    assert "unknown config keys" in str(exc.value)
+
+
+def test_grader_config_rejects_bad_json(tmp_path):
+    cfg_file = tmp_path / "graders.json"
+    cfg_file.write_text("{ not json", encoding="utf-8")
+    with pytest.raises(run_eval.EvalSchemaError):
+        run_eval._load_grader_config(cfg_file)
+
+
+def test_grader_config_rejects_non_object(tmp_path):
+    cfg_file = tmp_path / "graders.json"
+    cfg_file.write_text(_json.dumps(["a", "b"]), encoding="utf-8")
+    with pytest.raises(run_eval.EvalSchemaError):
+        run_eval._load_grader_config(cfg_file)
+
+
+def test_shipped_grader_config_matches_defaults():
+    # The bundled config is generated from the code defaults; keep them in sync so
+    # deleting the file (falling back to code) doesn't change behavior.
+    shipped = _json.loads(
+        (run_eval.CONFIG_DIR / "graders.json").read_text(encoding="utf-8"))
+    assert shipped == run_eval._DEFAULT_GRADER_CONFIG
+
+
+def test_shipped_assistant_prompt_matches_fallback():
+    text = (run_eval.CONFIG_DIR / "assistant_prompt.md").read_text(
+        encoding="utf-8").strip()
+    assert text == run_eval._DEFAULT_ASSISTANT_SYSTEM_PROMPT
+    assert run_eval.ASSISTANT_SYSTEM_PROMPT == text
+
+
+def test_empathy_marker_override_changes_grading(monkeypatch):
+    # End-to-end: overriding the marker list changes what the grader accepts.
+    monkeypatch.setattr(run_eval, "EMPATHY_MARKERS", ["ubuntu-marker"])
+    passing = run_eval.grade_empathetic_tone("well, ubuntu-marker here", {}, {})
+    assert passing.passed
+    failing = run_eval.grade_empathetic_tone("I'm so sorry for your loss", {}, {})
+    assert not failing.passed  # default markers no longer apply

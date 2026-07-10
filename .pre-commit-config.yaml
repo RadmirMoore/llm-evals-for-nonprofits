@@ -10,8 +10,8 @@ repos:
   - repo: local
     hooks:
       - id: eval-schema
-        name: validate eval JSON schema
+        name: validate eval + config JSON
         entry: python3 src/run_eval.py --check --no-color
         language: system
-        files: ^evals/.*\.json$
+        files: ^(evals/.*|config/graders)\.json$
         pass_filenames: false
