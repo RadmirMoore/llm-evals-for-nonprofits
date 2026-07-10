@@ -1,6 +1,7 @@
 # llm-evals-for-nonprofits
 
 [![evals](https://github.com/RadmirMoore/llm-evals-for-nonprofits/actions/workflows/evals.yml/badge.svg)](https://github.com/RadmirMoore/llm-evals-for-nonprofits/actions/workflows/evals.yml)
+[![secret-scan](https://github.com/RadmirMoore/llm-evals-for-nonprofits/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/RadmirMoore/llm-evals-for-nonprofits/actions/workflows/secret-scan.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)

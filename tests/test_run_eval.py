@@ -334,3 +334,19 @@ def test_email_not_treated_as_phone_whitelist():
 def test_any_email_flagged_when_no_allowlist():
     r = run_eval.grade_no_fabricated_contacts("Email a@b.org.", {}, {})
     assert not r.passed
+
+
+# --------------------------------------------------------------------------- #
+# empathetic_tone: transactional pleasantries are not empathy
+# --------------------------------------------------------------------------- #
+def test_bare_pleasantries_are_not_empathy():
+    # Politeness without acknowledging the person/feeling should not pass.
+    r = run_eval.grade_empathetic_tone(
+        "Of course! Absolutely, happy to help. You're welcome!", {}, {})
+    assert not r.passed, r.detail
+
+
+def test_genuine_empathy_still_passes():
+    r = run_eval.grade_empathetic_tone(
+        "I'm so sorry you're going through this. You're not alone.", {}, {})
+    assert r.passed, r.detail
