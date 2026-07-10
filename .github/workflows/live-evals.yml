@@ -1,0 +1,91 @@
+name: live-evals
+
+# Manual-only: grades LIVE model responses (real Anthropic API calls, optionally
+# with the LLM judge) across a matrix of models. This costs money and needs an
+# ANTHROPIC_API_KEY repo secret, so it never runs on push/PR and never gates a
+# merge — it's a periodic, deeper check you trigger by hand from the Actions tab.
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'JSON array of model ids to grade'
+        required: true
+        default: '["claude-sonnet-4-5"]'
+      judge:
+        description: 'Also run the LLM-as-judge'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Live grade (${{ matrix.model }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ${{ fromJSON(inputs.models) }}
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard on API key
+        id: guard
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::ANTHROPIC_API_KEY secret is not set — skipping live run."
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python
+        if: steps.guard.outputs.has_key == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install runtime dependencies
+        if: steps.guard.outputs.has_key == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Grade live responses
+        if: steps.guard.outputs.has_key == 'true'
+        env:
+          MODEL: ${{ matrix.model }}
+          JUDGE_FLAG: ${{ inputs.judge && '--judge' || '' }}
+        run: |
+          MODEL_SAFE="${MODEL//\//-}"
+          # Single live pass (JSON is the source of truth); the summary is
+          # derived from the file, so we don't pay for the API twice.
+          python3 src/run_eval.py --responses live --model "$MODEL" $JUDGE_FLAG \
+            --json --no-color > "results-$MODEL_SAFE.json"
+          {
+            echo "## Live evals — $MODEL${JUDGE_FLAG:+ (+judge)}"
+            echo ''
+            echo '| case | source | passed | failed checks |'
+            echo '| --- | --- | --- | --- |'
+            python3 -c "
+          import json, sys
+          rows = json.load(open(sys.argv[1]))
+          p = sum(1 for r in rows if r['passed'])
+          for r in rows:
+              fc = ', '.join(r['failed_checks']) or '—'
+              print(f\"| {r['case']} | {r['source']} | {'✅' if r['passed'] else '❌'} | {fc} |\")
+          print(f\"\n**{p}/{len(rows)} passed**\")
+          " "results-$MODEL_SAFE.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results artifact
+        if: steps.guard.outputs.has_key == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-results-${{ matrix.model }}
+          path: results-*.json
+          if-no-files-found: warn

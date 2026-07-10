@@ -200,3 +200,23 @@ implementation of this same seam.
   especially on cases it fails.
 - Keep the offline suite as the always-on gate (`make good`); reserve live/judge
   for pre-release or scheduled runs to control cost.
+
+## Running the live matrix in CI (manual)
+
+A [`live-evals`](../.github/workflows/live-evals.yml) workflow grades live
+responses across a matrix of models from the **Actions** tab. It is
+**manual-only** (`workflow_dispatch`) — it never runs on push/PR and never gates
+a merge, because it spends real API budget.
+
+Setup (once): add an `ANTHROPIC_API_KEY` [repository
+secret](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)
+(Settings → Secrets and variables → Actions). Without it the workflow no-ops with
+a warning instead of failing.
+
+To run: Actions → **live-evals** → *Run workflow*, then choose:
+
+- **models** — a JSON array of model ids, e.g. `["claude-sonnet-4-5", "claude-haiku-4-5-20251001"]`.
+- **judge** — whether to also run the LLM judge.
+
+Each model produces a pass/fail table in the run summary and a
+`results-<model>.json` artifact you can download and diff.
