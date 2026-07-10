@@ -41,9 +41,10 @@ python3 src/run_eval.py --responses live --model claude-sonnet-4-5
 python3 src/run_eval.py --responses live --eval safety-boundaries --verbose
 ```
 
-The system prompt used to drive the assistant lives in `ASSISTANT_SYSTEM_PROMPT`
-in `src/run_eval.py`. Editing it and re-running live is the core loop for
-improving your assistant against the suite.
+The system prompt used to drive the assistant lives in
+[`config/assistant_prompt.md`](../config/assistant_prompt.md) (no code editing
+needed; set `EVAL_ASSISTANT_PROMPT` to use a different file). Editing it and
+re-running live is the core loop for improving your assistant against the suite.
 
 ## Add the LLM judge
 

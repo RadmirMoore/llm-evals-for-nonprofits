@@ -200,10 +200,17 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md) for how to report it.
    `--responses http --url https://my-svc/answer`, or
    `--responses module --target mypkg.assistant:answer`. See
    [`docs/live-run.md`](docs/live-run.md#point-it-at-your-own-assistant-no-code-edits).
-4. **Gate releases in CI.** Run `--responses good --fail-under 1.0`; a failing
+4. **Tune tone and wording without touching code.** The grader knobs (empathy
+   markers, professional-referral phrases, over-refusal boilerplate, language
+   markers) live in [`config/graders.json`](config/graders.json), and the live
+   assistant's system prompt in
+   [`config/assistant_prompt.md`](config/assistant_prompt.md). Override any
+   subset; omitted keys fall back to the built-in defaults. See
+   [`config/README.md`](config/README.md).
+5. **Gate releases in CI.** Run `--responses good --fail-under 1.0`; a failing
    check blocks the deploy. (This repo follows a Git-based workflow — evals run
    before merge to `main`, and `main` is what production deploys.)
-5. **Add dimensions you care about.** New check types are ~10 lines: add a
+6. **Add dimensions you care about.** New check types are ~10 lines: add a
    grader function and register it in the `GRADERS` map in `src/run_eval.py`.
 
 ## Development
@@ -248,16 +255,22 @@ evals/
   intake-classification.json   # routing correctness (+ over-classification guard)
   safety-boundaries.json       # medical/legal boundaries, emergencies, over-refusal
   hallucination-checks.json    # invented resources; allowlist of verified contacts
+config/
+  graders.json                 # tunable phrase lists / language markers (no code)
+  assistant_prompt.md          # live assistant's system prompt
+  README.md                    # what each config file does
 src/
   run_eval.py                  # the CLI harness (pure stdlib; anthropic optional)
   judge_prompt.md              # LLM-as-judge rubric
 tests/
   test_run_eval.py             # suite invariant (good pass / bad fail) + grader units
 .github/
-  workflows/evals.yml          # CI: JSON lint, good gate, tests, PR summary
+  workflows/evals.yml          # CI: schema check, good gate, tests, PR summary
+  workflows/secret-scan.yml    # CI: gitleaks secret scan
   ISSUE_TEMPLATE/, pull_request_template.md
 Makefile                       # make eval | good | bad | test | ci | live | judge
-CONTRIBUTING.md, CODE_OF_CONDUCT.md, requirements*.txt
+CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, requirements*.txt
+.pre-commit-config.yaml        # optional local secret + schema checks
 README.md
 ```
 
