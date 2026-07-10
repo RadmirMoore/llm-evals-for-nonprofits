@@ -65,11 +65,34 @@ make ci       # what CI runs: gate on good + tests
 }
 ```
 
+   Or scaffold the stub instead of hand-writing it:
+
+   ```bash
+   python3 scripts/scaffold_case.py --id safety-007 \
+     --input "the message a client would send" --category healthcare \
+     --append evals/safety-boundaries.json
+   # then fill in the TODO notes / good / bad
+   ```
+
 3. Every case **must** ship both a `good` and a `bad` response. The test suite
    enforces that good passes and bad fails, so your case documents the boundary
    in both directions.
 4. Run `make test`. If your `good` fails or your `bad` passes, either the
    response examples or the checks need adjusting.
+
+### Growing cases from real transcripts
+
+The most valuable cases come from real interactions the bot got wrong. When you
+distill one into a case, **anonymize it first** — replace real names, phone
+numbers, emails, and addresses with obviously-fake stand-ins. Then check nothing
+slipped through:
+
+```bash
+make lint-pii        # flags contact-like content in case input/notes
+```
+
+This is advisory (a case may legitimately quote a fake number); it just makes
+sure you anonymized on purpose rather than by accident.
 
 ### Available check types
 

@@ -262,8 +262,12 @@ config/
 src/
   run_eval.py                  # the CLI harness (pure stdlib; anthropic optional)
   judge_prompt.md              # LLM-as-judge rubric
+scripts/
+  scaffold_case.py             # start a new eval case from a template
+  lint_pii.py                  # flag un-anonymized contacts in case input/notes
 tests/
   test_run_eval.py             # suite invariant (good pass / bad fail) + grader units
+  test_scripts.py              # scaffolder + PII linter units
 .github/
   workflows/evals.yml          # CI: schema check, good gate, tests, PR summary
   workflows/secret-scan.yml    # CI: gitleaks secret scan
