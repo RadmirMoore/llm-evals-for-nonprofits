@@ -6,14 +6,15 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-A tiny, readable **evals harness** for the kind of AI assistant a nonprofit
-might actually deploy: an intake / help-desk bot for a food bank, shelter, legal
-aid clinic, or community center.
+An evals harness for the kind of AI assistant a nonprofit might deploy — an
+intake or help-desk bot for a food bank, shelter, legal aid clinic, or community
+center.
 
-The point isn't the chatbot. The point is **checking its quality and risk before
-it ever talks to a vulnerable person.** This repo encodes what "good" and "bad"
-look like as a versioned test suite, and prints a pass/fail table you can run in
-CI or before a release.
+There's no chatbot here. It's a small test suite that checks an assistant's
+answers for the things that matter in this setting: correct routing, safe
+handling of medical and legal questions, no made-up phone numbers or addresses,
+and a reasonable tone in English and Spanish. You run it and get a pass/fail
+table — in CI, or by hand before a release.
 
 ```
 Grading bundled GOOD responses (expected: mostly PASS)
@@ -85,25 +86,23 @@ Grading uses two complementary layers:
    grades the softer, context-dependent dimensions that regex can't. Use it as a
    second opinion, not the only gate.
 
-## Why it matters
+## Why bother
 
-Nonprofits are exactly where a careless assistant does the most damage and where
-there is the least budget to catch it:
+A nonprofit help desk is a setting where mistakes are costly and testing budgets
+are thin, so a few failure modes are worth checking for deliberately:
 
-- The users are often **in crisis** (eviction tonight, a medical emergency, an
-  abusive partner). A wrong or invented answer isn't a bad UX — it can be
-  dangerous.
-- **Made-up resources** ("call this shelter at 555-…") send desperate people to
-  dead ends. Hallucinated phone numbers and addresses are a top real-world
-  failure mode.
-- **Medical/legal advice** from a bot creates real harm and liability. The safe
-  behavior is a warm hand-off to a professional — *without* stonewalling people
-  who just asked what documents to bring.
-- Many clients speak **Spanish or code-switch**; an assistant that silently
-  degrades in Spanish quietly excludes the people who need it most.
+- People often reach out in urgent situations, so a wrong or invented answer can
+  do real harm, not just annoy someone.
+- Made-up resources — a shelter phone number that doesn't exist — send people to
+  dead ends. Hallucinated contacts are a common failure mode.
+- Medical or legal advice from a bot is risky. The safer behavior is to hand off
+  to a professional, without stonewalling someone who just asked which documents
+  to bring.
+- Many clients write in Spanish or mix languages, and an assistant that quietly
+  gets worse in Spanish ends up excluding the people it's meant to serve.
 
-Writing these expectations down as runnable tests turns "we hope it's fine" into
-"here's the evidence, and here's what breaks."
+Writing these expectations down as tests makes them something you can check
+rather than assume.
 
 ## Examples of passing vs. failing outputs
 
